@@ -2,7 +2,7 @@
 <html lang="en" class="h-full">
 <head>
   <meta charset="UTF-8" />
-  <title>Morning Launchpad v2.6</title>
+  <title>Morning Launchpad v3.0</title>
   
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://cdn.tailwindcss.com"></script>
@@ -11,7 +11,7 @@
     @layer utilities {
       .bg-warning   { background-color: #ff8c00 !important; }
       .bg-critical  { background-color: #d62828 !important; }
-      .bg-normal    { background-color: #000000 !important; }
+      .bg-normal    { background-color: transparent !important; }
       .text-warning { color: #000000 !important; }
       .text-critical{ color: #ffffff !important; }
     }
@@ -21,6 +21,17 @@
       0%   { transform: scale(1); }
       50%  { transform: scale(1.05); }
       100% { transform: scale(1); }
+    }
+
+    @keyframes pulse-alert {
+      0%   { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      50%  { transform: scale(1.02); box-shadow: 0 0 20px 10px rgba(239, 68, 68, 0); }
+      100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+    .pulse-alert { 
+      animation: pulse-alert 2s infinite; 
+      border-color: #ef4444 !important; 
+      background-color: rgba(127, 29, 29, 0.4) !important; 
     }
 
     .confetti { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 40; }
@@ -40,85 +51,122 @@
       height: 100vh;
       overflow: hidden;
     }
+    
+    /* Custom Scrollbar to hide it but keep functionality if ever needed */
+    ::-webkit-scrollbar { display: none; }
   </style>
 </head>
-<body id="main-body" class="bg-normal flex flex-col transition-colors duration-1000">
+<body id="main-body" class="bg-black flex flex-col">
 
-  <div id="main-dashboard" class="flex flex-1 gap-12">
+  <div id="main-dashboard" class="flex flex-1 gap-12 h-full">
+    <!-- LEFT COLUMN: THE PULSE -->
     <div class="flex flex-col justify-between w-[40vw] border-r border-gray-800 pr-8">
-      <div id="clock" class="text-6xl font-mono text-center text-gray-400 font-bold">00:00 AM</div>
+      <div>
+        <div id="clock" class="text-[12vh] font-mono text-center text-white font-bold leading-none">00:00 AM</div>
+        <div id="date-display" class="text-4xl text-center text-blue-300 mt-2 font-medium tracking-wide uppercase">Monday, Jan 1</div>
+      </div>
       
-      <div class="flex flex-col items-center">
-        <div id="current-activity-label" class="text-4xl uppercase tracking-widest text-green-400 mb-2">Waiting...</div>
+      <!-- Countdown Panel (Now handles the background state colors) -->
+      <div id="countdown-panel" class="flex flex-col items-center justify-center transition-colors duration-1000 rounded-[3rem] py-8 w-full bg-normal">
+        <div id="current-activity-label" class="text-5xl uppercase tracking-widest text-green-400 mb-2">Waiting...</div>
         <div id="countdown" class="text-[25vh] font-bold leading-none tabular-nums tracking-tighter">00:00</div>
       </div>
 
       <div class="w-full pb-4">
-        <div class="h-10 w-full bg-gray-900 rounded-full overflow-hidden border border-gray-700">
-          <div id="task-progress" class="h-full bg-green-500 transition-all duration-1000" style="width: 0%"></div>
+        <div class="flex justify-between text-gray-500 text-xl font-bold uppercase mb-1 px-2">
+            <span>Task Progress</span>
+            <span>Total Morning</span>
         </div>
-        <div class="h-3 w-full bg-gray-800 rounded-full mt-3 overflow-hidden">
-          <div id="morning-progress" class="h-full bg-blue-600 transition-all duration-1000" style="width: 0%"></div>
+        <div class="h-10 w-full bg-gray-900 rounded-full overflow-hidden border border-gray-700 relative">
+          <!-- Background Total Morning Progress (Dark Blue) -->
+          <div id="morning-progress" class="absolute top-0 left-0 h-full bg-blue-900 bg-opacity-50 transition-all duration-1000" style="width: 0%"></div>
+          <!-- Foreground Current Task Progress (Green) -->
+          <div id="task-progress" class="absolute top-0 left-0 h-full bg-green-500 transition-all duration-1000 opacity-90" style="width: 0%"></div>
         </div>
       </div>
     </div>
 
-    <div class="flex flex-col justify-between w-[60vw] relative pl-4">
-      <div id="history" class="opacity-40 italic text-4xl h-12 tracking-wide text-gray-400"></div>
-
-      <div class="flex-1 mt-6">
-        <h1 id="task-title" class="text-8xl font-black mb-10 tracking-tight text-white">Loading Routine...</h1>
-        <ul id="checklist" class="space-y-8 text-5xl text-gray-200 list-none font-medium"></ul>
+    <!-- RIGHT COLUMN: CONTENT & GEAR -->
+    <div class="flex flex-col w-[60vw] relative pl-4 h-full">
+      
+      <!-- Full Routine List (Takes up main vertical space) -->
+      <div class="flex-1 overflow-hidden flex flex-col justify-center">
+        <ul id="routine-list" class="space-y-3 flex flex-col w-full"></ul>
       </div>
 
-      <div class="flex items-end justify-between border-t border-gray-800 pt-8">
-        <div id="next-task" class="opacity-60 text-4xl text-gray-300 font-bold mb-2">Up Next: ---</div>
-        
-        <div class="bg-slate-800 p-6 rounded-3xl border-2 border-slate-700 max-w-[500px] shadow-2xl">
-          <div class="flex items-center gap-4 mb-3">
-            <span class="text-5xl">🧥</span>
-            <p class="text-3xl text-blue-400 uppercase font-black tracking-wider">Clothes Advice</p>
+      <!-- BOTTOM WIDGETS: Gear Advice & Daily Specials -->
+      <div class="flex gap-6 border-t border-gray-800 pt-6 mt-4 shrink-0">
+        <!-- Gear Advice -->
+        <div class="flex-1 bg-slate-800 p-5 rounded-3xl border-2 border-slate-700 shadow-2xl flex flex-col justify-center">
+          <div class="flex items-center gap-4 mb-2">
+            <span class="text-4xl">🧥</span>
+            <p class="text-2xl text-blue-400 uppercase font-black tracking-wider">Gear Advice</p>
           </div>
-          <p id="gear-text" class="text-4xl font-bold leading-snug text-white">Checking Weather...</p>
-          <p id="forecast-line" class="text-xl text-gray-400 mt-3 italic font-medium"></p>
+          <p id="gear-text" class="text-3xl font-bold leading-snug text-white">Checking Weather...</p>
+          <div class="flex items-center gap-3 mt-2">
+             <span id="weather-emoji" class="text-3xl">☀️</span>
+             <p id="forecast-line" class="text-xl text-gray-400 italic font-medium"></p>
+          </div>
+        </div>
+
+        <!-- Daily Specials / Reminders -->
+        <div id="reminders-card" class="flex-1 bg-slate-800 p-5 rounded-3xl border-2 border-slate-700 shadow-2xl transition-all duration-500 flex flex-col justify-center">
+          <div class="flex items-center gap-4 mb-2">
+            <span class="text-4xl">🎒</span>
+            <p class="text-2xl text-yellow-400 uppercase font-black tracking-wider">Today's Reminders</p>
+          </div>
+          <p id="reminders-text" class="text-3xl font-bold text-white whitespace-pre-line leading-snug">Loading specials...</p>
         </div>
       </div>
+
     </div>
   </div>
 
+  <!-- SUCCESS OVERLAY (DOORWAY HUB) -->
   <div id="success-overlay" class="fixed inset-0 bg-black flex flex-col items-center justify-center hidden z-50">
-    <h1 class="text-[12vh] font-black text-center leading-tight mb-12 text-white drop-shadow-lg">
-      HAVE A GREAT DAY <br> AT SCHOOL! 🎒🚌
+    <h1 class="text-[10vh] font-black text-center leading-tight mb-8 text-white drop-shadow-lg">
+      HAVE A GREAT DAY <br> AT SCHOOL! 🚌
     </h1>
     
-    <div class="bg-gray-900 border-4 border-gray-800 rounded-[3rem] p-12 flex flex-col items-center gap-8 shadow-2xl min-w-[60vw]">
-      <div class="flex justify-around w-full text-6xl font-bold text-gray-300 gap-12">
+    <div class="bg-gray-900 border-4 border-gray-800 rounded-[3rem] p-10 flex flex-col items-center gap-8 shadow-2xl min-w-[70vw]">
+      
+      <!-- Time & Date -->
+      <div class="flex justify-around w-full text-5xl font-bold text-gray-300 gap-12">
         <span id="success-time">🕒 00:00 AM</span>
         <span id="success-date">📅 Date</span>
       </div>
       
-      <div class="w-full h-2 bg-gray-800 rounded-full my-4"></div>
+      <div class="w-full h-1 bg-gray-800 rounded-full my-2"></div>
       
-      <div class="flex flex-col items-center gap-6 text-5xl">
-        <span id="success-weather" class="font-bold text-blue-300">🌡️ --°F | --</span>
-        <span id="success-gear" class="text-green-400 font-black tracking-wide">🧥 Wear: --</span>
+      <!-- Reminders Alert -->
+      <div class="bg-yellow-900 bg-opacity-30 border-2 border-yellow-700 p-6 rounded-2xl w-full text-center">
+         <p class="text-2xl text-yellow-500 uppercase font-black tracking-widest mb-2">Don't Forget</p>
+         <p id="success-reminders" class="text-5xl text-yellow-300 font-bold leading-tight"></p>
+      </div>
+
+      <!-- Weather & Gear (Massive) -->
+      <div class="flex flex-col items-center gap-6 mt-4">
+        <span id="success-weather" class="text-5xl font-bold text-blue-300">☀️ --°F | --</span>
+        <span id="success-gear" class="text-green-400 font-black tracking-wide text-6xl text-center">🧥 Wear: --</span>
       </div>
     </div>
   </div>
 
 <script>
   /* ==============================================================
-     1️⃣ CONFIG & SIMULATION ENGINE
+     1️⃣ CONFIG, LOOKUPS & SIMULATION ENGINE
      ============================================================== */
-  const TIME_ACCEL = 1;     // Multiplier (1 = real-time, 60 = 1 minute per second)
+  const urlParams = new URLSearchParams(window.location.search);
+  
+  // Acceleration factor: 1 = real time, 60 = 1 min per sec, etc.
+  const TIME_ACCEL = parseInt(urlParams.get('accel')) || 1;     
+
   const MONONA_LAT = 43.0575, MONONA_LON = -89.3325;
   let liveWeather = null;
 
   // URL Parameter parsing for Debugging
-  const urlParams = new URLSearchParams(window.location.search);
   const debugTimeParam = urlParams.get('start') || urlParams.get('time');
-  //const isDebug = urlParams.get('debug') === 'true' || !!debugTimeParam;
-  const isDebug = false;
+  const isDebug = urlParams.get('debug') === 'true' || !!debugTimeParam || TIME_ACCEL > 1;
 
   let realStartEpoch = Date.now();
   let mockStartEpoch = Date.now();
@@ -130,23 +178,33 @@
     mockStartEpoch = d.getTime();
   }
 
-  // Master Time Function - Returns a Date object based on Real or Mocked time
   function getNow() {
     if (!isDebug) return new Date();
     const elapsedMs = (Date.now() - realStartEpoch) * TIME_ACCEL;
     return new Date(mockStartEpoch + elapsedMs);
   }
 
+  // 📝 Daily Specials / Reminders Table
+  const DAILY_SPECIALS = {
+    0: "Sunday Family Day!", // Sunday
+    1: "🎻 Anderson Orchestra", // Monday
+    2: "🩰 Girls Ballet", // Tuesday
+    3: "📚 Henny Library\n👟 Anderson Gym", // Wednesday
+    4: "🥋 All Kids Jiu-Jitsu", // Thursday
+    5: "📂 Take Home Folders", // Friday
+    6: "Saturday Play Day!" // Saturday
+  };
+
   /* ==============================================================
      2️⃣ THE SCHEDULE
      ============================================================== */
   const ROUTINE = [
-    { start: "06:30", end: "06:45", title: "Morning Exercise", list: ["💪 Rise and Shine!"] },
-    { start: "06:45", end: "06:50", title: "Get Dressed", list: ["🩲 Underwear", "🧦 Socks", "👕 [BASE]"] },
-    { start: "06:50", end: "07:10", title: "Breakfast", list: ["🍳 Fuel your Body", "🧽 Clean up dishes"] },
-    { start: "07:10", end: "07:15", title: "Brush Teeth", list: ["⏱️ 2 minutes brushing", "🚰 Rinse sink"] },
-    { start: "07:15", end: "07:20", title: "Comb Hair", list: ["🪞 Check the mirror", "🧹 Tidy up"] },
-    { start: "07:20", end: "07:25", title: "Final Prep", list: ["🎒 Pack bags", "👟 Shoes on", "🧥 [GEAR]"] }
+    { id: "EXERCISE", start: "06:30", end: "06:45", title: "Morning Exercise", list: ["💪 Rise and Shine!"] },
+    { id: "DRESS", start: "06:45", end: "06:50", title: "Get Dressed", list: ["🩲 Underwear & 🧦 Socks", "👕 [BASE]"] },
+    { id: "EAT", start: "06:50", end: "07:10", title: "Breakfast", list: ["🍳 Fuel your Body", "🧽 Clean up dishes"] },
+    { id: "TEETH", start: "07:10", end: "07:15", title: "Brush Teeth", list: ["⏱️ 2 minutes brushing", "🚰 Rinse sink"] },
+    { id: "HAIR", start: "07:15", end: "07:20", title: "Comb Hair", list: ["🪞 Check the mirror", "🧹 Tidy up"] },
+    { id: "PREP", start: "07:20", end: "07:25", title: "Final Prep", list: ["🎒 Pack bags", "👟 Shoes on", "🧥 [GEAR]"] }
   ];
 
   function timeToSec(t) { const [h,m] = t.split(":").map(Number); return h*3600 + m*60; }
@@ -155,8 +213,18 @@
   const dayEndSec = ROUTINE[ROUTINE.length-1].endSec;
 
   /* ==============================================================
-     3️⃣ WEATHER LOGIC
+     3️⃣ WEATHER LOGIC & EMOJIS
      ============================================================== */
+  function getWeatherEmoji(condition) {
+    const c = condition.toLowerCase();
+    if (/thunder|storm/.test(c)) return '⛈️';
+    if (/snow|flurr/.test(c)) return '❄️';
+    if (/rain|drizzle|shower/.test(c)) return '🌧️';
+    if (/partly/.test(c)) return '⛅';
+    if (/cloud|overcast/.test(c)) return '☁️';
+    return '☀️'; // Default to sunny/clear
+  }
+
   function getWeatherAdvice(tempF, condition) {
     const isRaining = /rain|drizzle|storm|shower/i.test(condition);
     const t = Math.round(tempF);
@@ -182,10 +250,10 @@
       const future = forecast.properties.periods.slice(0, 12);
       const maxTemp = Math.max(...future.map(p => p.temperature));
       const maxProb = Math.max(...future.map(p => p.probabilityOfPrecipitation?.value ?? 0));
-      const condition = maxProb > 0 ? "rain" : forecast.properties.periods[0].shortForecast.toLowerCase();
+      const condition = maxProb > 0 ? "rain" : forecast.properties.periods[0].shortForecast;
 
       liveWeather = { temp: maxTemp, condition: condition, forecastLine: `High of ${maxTemp}°F, ${maxProb}% chance of rain` };
-    } catch(e) { console.warn('Weather fetch failed.'); }
+    } catch(e) { console.warn('Weather fetch failed. Using fallback.'); }
   }
 
   /* ==============================================================
@@ -207,105 +275,158 @@
     const now = getNow();
     const currentSecs = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
     
-    // Update main clock
+    // ⏰ Update Clocks & Dates
     document.getElementById('clock').textContent = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    const dateString = now.toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric'});
+    document.getElementById('date-display').textContent = dateString;
 
-    // Determine State
+    // 📅 Update Daily Specials (Reminders)
+    const currentDayNum = now.getDay();
+    const reminderText = DAILY_SPECIALS[currentDayNum];
+    document.getElementById('reminders-text').textContent = reminderText;
+
     const overlay = document.getElementById('success-overlay');
     const mainDash = document.getElementById('main-dashboard');
+    const cdPanel = document.getElementById('countdown-panel');
+    const cd = document.getElementById('countdown');
     
-    // Weather Data Prep
+    // 🌤️ Weather Data Prep
     const tempUse = liveWeather?.temp ?? 55;
-    const condUse = liveWeather?.condition ?? "clear";
+    const condUse = liveWeather?.condition ?? "Clear";
     const advice = getWeatherAdvice(tempUse, condUse);
+    const wEmoji = getWeatherEmoji(condUse);
 
-    // END OF DAY STATE (Success)
+    // ==============================================
+    // STATE: END OF DAY (Success / Doorway Hub)
+    // ==============================================
     if (currentSecs >= dayEndSec) {
       mainDash.classList.add('hidden');
       overlay.classList.remove('hidden');
-      document.body.classList.replace('bg-warning', 'bg-normal');
-      document.body.classList.replace('bg-critical', 'bg-normal');
+      
+      // Reset panel color in case we hit the end of the routine
+      cdPanel.classList.remove('bg-warning', 'bg-critical');
+      cdPanel.classList.add('bg-normal');
       
       // Populate Success Screen
       document.getElementById('success-time').textContent = `🕒 ${now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
-      document.getElementById('success-date').textContent = `📅 ${now.toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric'})}`;
-      document.getElementById('success-weather').textContent = `🌡️ ${tempUse}°F | ${condUse.charAt(0).toUpperCase() + condUse.slice(1)}`;
-      document.getElementById('success-gear').textContent = `🧥 Wear: ${advice.fullDay}`;
+      document.getElementById('success-date').textContent = `📅 ${dateString}`;
+      document.getElementById('success-reminders').innerHTML = reminderText.replace(/\n/g, '<br>');
+      document.getElementById('success-weather').textContent = `${wEmoji} ${tempUse}°F | ${condUse}`;
+      document.getElementById('success-gear').innerHTML = `🧥 Wear: <span class="text-white">${advice.fullDay}</span>`;
       
       spawnConfetti();
       return; 
     }
 
-    // NORMAL DASHBOARD STATE
+    // ==============================================
+    // STATE: NORMAL DASHBOARD
+    // ==============================================
     overlay.classList.add('hidden');
     mainDash.classList.remove('hidden');
 
-    let cur = null, prev = null, next = null;
-    if (currentSecs < dayStartSec) {
-        // Before 06:30 AM
-        next = ROUTINE[0];
-    } else {
-        // Find Active Task
-        for(let i=0; i<ROUTINE.length; i++) {
-          if(currentSecs >= ROUTINE[i].startSec && currentSecs < ROUTINE[i].endSec) {
-            cur = ROUTINE[i]; prev = i>0 ? ROUTINE[i-1] : null; next = i<ROUTINE.length-1 ? ROUTINE[i+1] : null; break;
-          }
-        }
+    let cur = null;
+    if (currentSecs >= dayStartSec) {
+        cur = ROUTINE.find(r => currentSecs >= r.startSec && currentSecs < r.endSec);
     }
 
-    // Apply Weather to Main Screen
+    // 🌤️ Apply Weather to Main Screen
+    document.getElementById('weather-emoji').textContent = wEmoji;
     document.getElementById('gear-text').textContent = advice.fullDay;
     document.getElementById('forecast-line').textContent = liveWeather?.forecastLine ?? 'Using fallback weather';
 
-    // If before start time, show waiting state
-    if (!cur) {
-        document.getElementById('history').textContent = '';
-        document.getElementById('task-title').textContent = 'Waiting to Start...';
+    // 🚨 Pulse the Reminders Card if we are in "Final Prep"
+    const remindersCard = document.getElementById('reminders-card');
+    if (cur && cur.id === 'PREP') {
+       remindersCard.classList.add('pulse-alert');
+    } else {
+       remindersCard.classList.remove('pulse-alert');
+    }
+
+    // If before start time, show standby
+    if (!cur && currentSecs < dayStartSec) {
         document.getElementById('current-activity-label').textContent = 'Standby';
-        document.getElementById('next-task').textContent = `Up Next: ${next.title}`;
         document.getElementById('countdown').textContent = '--:--';
         document.getElementById('task-progress').style.width = '0%';
         document.getElementById('morning-progress').style.width = '0%';
-        return;
+        
+        // Reset panel colors
+        cdPanel.classList.remove('bg-warning', 'bg-critical');
+        cdPanel.classList.add('bg-normal');
+        cd.classList.remove('pulse', 'text-warning', 'text-critical');
+        
+    } else if (cur) {
+        document.getElementById('current-activity-label').textContent = cur.title;
+        const remaining = cur.endSec - currentSecs;
+        const m = Math.floor(remaining/60); const s = Math.floor(remaining%60);
+        document.getElementById('countdown').textContent = `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+
+        const taskPct = Math.max(0, Math.min(100, ((currentSecs - cur.startSec) / (cur.endSec - cur.startSec)) * 100));
+        document.getElementById('task-progress').style.width = `${taskPct}%`;
+
+        const totalPct = Math.max(0, Math.min(100, ((currentSecs - dayStartSec) / (dayEndSec - dayStartSec)) * 100));
+        document.getElementById('morning-progress').style.width = `${totalPct}%`;
+
+        // Panel Colors (Warning/Critical states) applied only to the countdown panel
+        cdPanel.classList.remove('bg-normal','bg-warning','bg-critical');
+        cd.classList.remove('pulse', 'text-warning', 'text-critical');
+
+        if(remaining <= 30) {
+          cdPanel.classList.add('bg-critical'); cd.classList.add('pulse', 'text-critical');
+        } else if(remaining <= 120) {
+          cdPanel.classList.add('bg-warning'); cd.classList.add('pulse', 'text-warning');
+        } else {
+          cdPanel.classList.add('bg-normal');
+        }
     }
 
-    // Update Main Screen Text
-    document.getElementById('history').textContent = prev ? `Completed: ${prev.title}` : 'Routine Started';
-    document.getElementById('task-title').textContent = cur.title;
-    document.getElementById('current-activity-label').textContent = cur.title;
-    document.getElementById('next-task').textContent = next ? `Up Next: ${next.title}` : 'Up Next: Out the Door!';
-    
-    const listHtml = cur.list.map(item => {
-      let txt = item.replace('[BASE]', advice.base).replace('[GEAR]', advice.gear);
-      return `<li class="flex items-center"><span class="mr-4 text-blue-500 text-6xl">•</span>${txt}</li>`;
+    // 📝 Render Full Routine List
+    const listHtml = ROUTINE.map(r => {
+      const isCompleted = currentSecs >= r.endSec;
+      const isCurrent = currentSecs >= r.startSec && currentSecs < r.endSec;
+
+      let liClass = "p-3 rounded-2xl transition-all duration-500 border-2 ";
+      let icon = "⏳";
+      let titleClass = "text-3xl font-bold ";
+      let sublistClass = "text-xl mt-1 space-y-1 text-gray-400 font-medium"; 
+
+      if (isCompleted) {
+        liClass += "border-transparent opacity-30 bg-transparent";
+        icon = "✅";
+        titleClass += "text-gray-500 line-through";
+        sublistClass += " line-through";
+      } else if (isCurrent) {
+        liClass += "bg-slate-700 border-slate-500 shadow-xl scale-[1.01] transform";
+        icon = "<span class='text-green-400 pulse inline-block'>▹</span>";
+        titleClass += "text-white text-4xl"; 
+        sublistClass = "text-2xl mt-1 space-y-1 text-blue-200 font-bold";
+      } else {
+        liClass += "border-transparent bg-transparent opacity-80";
+        icon = "⏳";
+        titleClass += "text-gray-300";
+      }
+
+      const subItems = r.list.map(item => {
+        let txt = item.replace('[BASE]', advice.base).replace('[GEAR]', advice.gear);
+        return `<li class="flex items-center"><span class="mr-3 text-blue-500">•</span>${txt}</li>`;
+      }).join('');
+
+      return `
+        <li class="${liClass}">
+          <div class="flex items-center">
+            <div class="w-12 text-center text-3xl">${icon}</div>
+            <div class="w-24 text-2xl font-mono text-gray-500 tracking-wider">${r.start}</div>
+            <div class="${titleClass}">${r.title}</div>
+          </div>
+          <div class="pl-[9rem]">
+            <ul class="${sublistClass} list-none">
+              ${subItems}
+            </ul>
+          </div>
+        </li>
+      `;
     }).join('');
-    document.getElementById('checklist').innerHTML = listHtml;
-
-    // Timers & Bars
-    const remaining = cur.endSec - currentSecs;
-    const m = Math.floor(remaining/60); const s = Math.floor(remaining%60);
-    document.getElementById('countdown').textContent = `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
-
-    const taskPct = Math.max(0, Math.min(100, ((currentSecs - cur.startSec) / (cur.endSec - cur.startSec)) * 100));
-    document.getElementById('task-progress').style.width = `${taskPct}%`;
-
-    const totalPct = Math.max(0, Math.min(100, ((currentSecs - dayStartSec) / (dayEndSec - dayStartSec)) * 100));
-    document.getElementById('morning-progress').style.width = `${totalPct}%`;
-
-    // State Colors
-    const body = document.getElementById('main-body');
-    const cd = document.getElementById('countdown');
     
-    body.classList.remove('bg-normal','bg-warning','bg-critical');
-    cd.classList.remove('pulse', 'text-warning', 'text-critical');
-
-    if(remaining <= 30) {
-      body.classList.add('bg-critical'); cd.classList.add('pulse', 'text-critical');
-    } else if(remaining <= 120) {
-      body.classList.add('bg-warning'); cd.classList.add('pulse', 'text-warning');
-    } else {
-      body.classList.add('bg-normal');
-    }
+    document.getElementById('routine-list').innerHTML = listHtml;
   }
 
   async function init() {
