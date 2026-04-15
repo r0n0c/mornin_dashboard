@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <title>Morning Launchpad v2.6</title>
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    @layer utilities {
+      .bg-warning   { background-color: #ff8c00 !important; }
+      .bg-critical  { background-color: #d62828 !important; }
+      .bg-normal    { background-color: #000000 !important; }
+      .text-warning { color: #000000 !important; }
+      .text-critical{ color: #ffffff !important; }
+    }
+    
+    .pulse { animation: pulse 1s infinite; }
+    @keyframes pulse {
+      0%   { transform: scale(1); }
+      50%  { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+
+    .confetti { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 40; }
+    .confetti span {
+      position: absolute; width: 10px; height: 10px; background: #fff;
+      animation: fall 3s linear infinite;
+    }
+    @keyframes fall {
+      0%   { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(110vh) rotate(360deg); opacity: 0; }
+    }
+
+    body {
+      padding: 4vh 4vw; 
+      background-color: black;
+      color: white;
+      height: 100vh;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body id="main-body" class="bg-normal flex flex-col transition-colors duration-1000">
+
+  <div id="main-dashboard" class="flex flex-1 gap-12">
+    <div class="flex flex-col justify-between w-[40vw] border-r border-gray-800 pr-8">
+      <div id="clock" class="text-6xl font-mono text-center text-gray-400 font-bold">00:00 AM</div>
+      
+      <div class="flex flex-col items-center">
+        <div id="current-activity-label" class="text-4xl uppercase tracking-widest text-green-400 mb-2">Waiting...</div>
+        <div id="countdown" class="text-[25vh] font-bold leading-none tabular-nums tracking-tighter">00:00</div>
+      </div>
+
+      <div class="w-full pb-4">
+        <div class="h-10 w-full bg-gray-900 rounded-full overflow-hidden border border-gray-700">
+          <div id="task-progress" class="h-full bg-green-500 transition-all duration-1000" style="width: 0%"></div>
+        </div>
+        <div class="h-3 w-full bg-gray-800 rounded-full mt-3 overflow-hidden">
+          <div id="morning-progress" class="h-full bg-blue-600 transition-all duration-1000" style="width: 0%"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex flex-col justify-between w-[60vw] relative pl-4">
+      <div id="history" class="opacity-40 italic text-4xl h-12 tracking-wide text-gray-400"></div>
+
+      <div class="flex-1 mt-6">
+        <h1 id="task-title" class="text-8xl font-black mb-10 tracking-tight text-white">Loading Routine...</h1>
+        <ul id="checklist" class="space-y-8 text-5xl text-gray-200 list-none font-medium"></ul>
+      </div>
+
+      <div class="flex items-end justify-between border-t border-gray-800 pt-8">
+        <div id="next-task" class="opacity-60 text-4xl text-gray-300 font-bold mb-2">Up Next: ---</div>
+        
+        <div class="bg-slate-800 p-6 rounded-3xl border-2 border-slate-700 max-w-[500px] shadow-2xl">
+          <div class="flex items-center gap-4 mb-3">
+            <span class="text-5xl">🧥</span>
+            <p class="text-3xl text-blue-400 uppercase font-black tracking-wider">Clothes Advice</p>
+          </div>
+          <p id="gear-text" class="text-4xl font-bold leading-snug text-white">Checking Weather...</p>
+          <p id="forecast-line" class="text-xl text-gray-400 mt-3 italic font-medium"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="success-overlay" class="fixed inset-0 bg-black flex flex-col items-center justify-center hidden z-50">
+    <h1 class="text-[12vh] font-black text-center leading-tight mb-12 text-white drop-shadow-lg">
+      HAVE A GREAT DAY <br> AT SCHOOL! 🎒🚌
+    </h1>
+    
+    <div class="bg-gray-900 border-4 border-gray-800 rounded-[3rem] p-12 flex flex-col items-center gap-8 shadow-2xl min-w-[60vw]">
+      <div class="flex justify-around w-full text-6xl font-bold text-gray-300 gap-12">
+        <span id="success-time">🕒 00:00 AM</span>
+        <span id="success-date">📅 Date</span>
+      </div>
+      
+      <div class="w-full h-2 bg-gray-800 rounded-full my-4"></div>
+      
+      <div class="flex flex-col items-center gap-6 text-5xl">
+        <span id="success-weather" class="font-bold text-blue-300">🌡️ --°F | --</span>
+        <span id="success-gear" class="text-green-400 font-black tracking-wide">🧥 Wear: --</span>
+      </div>
+    </div>
+  </div>
+
+<script>
+  /* ==============================================================
+     1️⃣ CONFIG & SIMULATION ENGINE
+     ============================================================== */
+  const TIME_ACCEL = 1;     // Multiplier (1 = real-time, 60 = 1 minute per second)
+  const MONONA_LAT = 43.0575, MONONA_LON = -89.3325;
+  let liveWeather = null;
+
+  // URL Parameter parsing for Debugging
+  const urlParams = new URLSearchParams(window.location.search);
+  const debugTimeParam = urlParams.get('start') || urlParams.get('time');
+  //const isDebug = urlParams.get('debug') === 'true' || !!debugTimeParam;
+  const isDebug = false;
+
+  let realStartEpoch = Date.now();
+  let mockStartEpoch = Date.now();
+
+  if (isDebug && debugTimeParam) {
+    const [h, m] = debugTimeParam.split(':').map(Number);
+    const d = new Date();
+    d.setHours(h, m, 0, 0);
+    mockStartEpoch = d.getTime();
+  }
+
+  // Master Time Function - Returns a Date object based on Real or Mocked time
+  function getNow() {
+    if (!isDebug) return new Date();
+    const elapsedMs = (Date.now() - realStartEpoch) * TIME_ACCEL;
+    return new Date(mockStartEpoch + elapsedMs);
+  }
+
+  /* ==============================================================
+     2️⃣ THE SCHEDULE
+     ============================================================== */
+  const ROUTINE = [
+    { start: "06:30", end: "06:45", title: "Morning Exercise", list: ["💪 Rise and Shine!"] },
+    { start: "06:45", end: "06:50", title: "Get Dressed", list: ["🩲 Underwear", "🧦 Socks", "👕 [BASE]"] },
+    { start: "06:50", end: "07:10", title: "Breakfast", list: ["🍳 Fuel your Body", "🧽 Clean up dishes"] },
+    { start: "07:10", end: "07:15", title: "Brush Teeth", list: ["⏱️ 2 minutes brushing", "🚰 Rinse sink"] },
+    { start: "07:15", end: "07:20", title: "Comb Hair", list: ["🪞 Check the mirror", "🧹 Tidy up"] },
+    { start: "07:20", end: "07:25", title: "Final Prep", list: ["🎒 Pack bags", "👟 Shoes on", "🧥 [GEAR]"] }
+  ];
+
+  function timeToSec(t) { const [h,m] = t.split(":").map(Number); return h*3600 + m*60; }
+  ROUTINE.forEach(r => { r.startSec = timeToSec(r.start); r.endSec = timeToSec(r.end); });
+  const dayStartSec = ROUTINE[0].startSec;
+  const dayEndSec = ROUTINE[ROUTINE.length-1].endSec;
+
+  /* ==============================================================
+     3️⃣ WEATHER LOGIC
+     ============================================================== */
+  function getWeatherAdvice(tempF, condition) {
+    const isRaining = /rain|drizzle|storm|shower/i.test(condition);
+    const t = Math.round(tempF);
+
+    let base = t < 32 ? "Long sleeves + Long pants" : (t <= 60 ? "Short sleeves + Long pants" : "Short sleeves + Shorts");
+    if (Math.abs(t-45) <= 2 && !isRaining) base = "Short sleeves + Long pants"; 
+
+    let gear = "None";
+    if (isRaining) gear = t < 40 ? "Winter clothes + Umbrella" : "Rain coat & boots + Umbrella";
+    else if (t < 32) gear = "Winter coat, Boots, Gloves, Hat";
+    else if (t <= 60) gear = "Light Jacket";
+
+    return { base, gear, fullDay: `${base} + ${gear}` };
+  }
+
+  async function loadLiveWeather() {
+    try {
+      const pRes = await fetch(`https://api.weather.gov/points/${MONONA_LAT},${MONONA_LON}`);
+      const point = await pRes.json();
+      const fRes = await fetch(point.properties.forecastHourly);
+      const forecast = await fRes.json();
+
+      const future = forecast.properties.periods.slice(0, 12);
+      const maxTemp = Math.max(...future.map(p => p.temperature));
+      const maxProb = Math.max(...future.map(p => p.probabilityOfPrecipitation?.value ?? 0));
+      const condition = maxProb > 0 ? "rain" : forecast.properties.periods[0].shortForecast.toLowerCase();
+
+      liveWeather = { temp: maxTemp, condition: condition, forecastLine: `High of ${maxTemp}°F, ${maxProb}% chance of rain` };
+    } catch(e) { console.warn('Weather fetch failed.'); }
+  }
+
+  /* ==============================================================
+     4️⃣ UI RENDER LOOP
+     ============================================================== */
+  function spawnConfetti() {
+    if(document.querySelector('.confetti')) return;
+    const c = document.createElement('div'); c.className = 'confetti';
+    for(let i=0; i<150; i++) {
+      const s = document.createElement('span');
+      s.style.left = Math.random()*100+'vw'; s.style.animationDelay = Math.random()*3+'s';
+      s.style.background = `hsl(${Math.random()*360},80%,60%)`;
+      c.appendChild(s);
+    }
+    document.body.appendChild(c);
+  }
+
+  function update() {
+    const now = getNow();
+    const currentSecs = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+    
+    // Update main clock
+    document.getElementById('clock').textContent = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+    // Determine State
+    const overlay = document.getElementById('success-overlay');
+    const mainDash = document.getElementById('main-dashboard');
+    
+    // Weather Data Prep
+    const tempUse = liveWeather?.temp ?? 55;
+    const condUse = liveWeather?.condition ?? "clear";
+    const advice = getWeatherAdvice(tempUse, condUse);
+
+    // END OF DAY STATE (Success)
+    if (currentSecs >= dayEndSec) {
+      mainDash.classList.add('hidden');
+      overlay.classList.remove('hidden');
+      document.body.classList.replace('bg-warning', 'bg-normal');
+      document.body.classList.replace('bg-critical', 'bg-normal');
+      
+      // Populate Success Screen
+      document.getElementById('success-time').textContent = `🕒 ${now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+      document.getElementById('success-date').textContent = `📅 ${now.toLocaleDateString([], {weekday: 'long', month: 'long', day: 'numeric'})}`;
+      document.getElementById('success-weather').textContent = `🌡️ ${tempUse}°F | ${condUse.charAt(0).toUpperCase() + condUse.slice(1)}`;
+      document.getElementById('success-gear').textContent = `🧥 Wear: ${advice.fullDay}`;
+      
+      spawnConfetti();
+      return; 
+    }
+
+    // NORMAL DASHBOARD STATE
+    overlay.classList.add('hidden');
+    mainDash.classList.remove('hidden');
+
+    let cur = null, prev = null, next = null;
+    if (currentSecs < dayStartSec) {
+        // Before 06:30 AM
+        next = ROUTINE[0];
+    } else {
+        // Find Active Task
+        for(let i=0; i<ROUTINE.length; i++) {
+          if(currentSecs >= ROUTINE[i].startSec && currentSecs < ROUTINE[i].endSec) {
+            cur = ROUTINE[i]; prev = i>0 ? ROUTINE[i-1] : null; next = i<ROUTINE.length-1 ? ROUTINE[i+1] : null; break;
+          }
+        }
+    }
+
+    // Apply Weather to Main Screen
+    document.getElementById('gear-text').textContent = advice.fullDay;
+    document.getElementById('forecast-line').textContent = liveWeather?.forecastLine ?? 'Using fallback weather';
+
+    // If before start time, show waiting state
+    if (!cur) {
+        document.getElementById('history').textContent = '';
+        document.getElementById('task-title').textContent = 'Waiting to Start...';
+        document.getElementById('current-activity-label').textContent = 'Standby';
+        document.getElementById('next-task').textContent = `Up Next: ${next.title}`;
+        document.getElementById('countdown').textContent = '--:--';
+        document.getElementById('task-progress').style.width = '0%';
+        document.getElementById('morning-progress').style.width = '0%';
+        return;
+    }
+
+    // Update Main Screen Text
+    document.getElementById('history').textContent = prev ? `Completed: ${prev.title}` : 'Routine Started';
+    document.getElementById('task-title').textContent = cur.title;
+    document.getElementById('current-activity-label').textContent = cur.title;
+    document.getElementById('next-task').textContent = next ? `Up Next: ${next.title}` : 'Up Next: Out the Door!';
+    
+    const listHtml = cur.list.map(item => {
+      let txt = item.replace('[BASE]', advice.base).replace('[GEAR]', advice.gear);
+      return `<li class="flex items-center"><span class="mr-4 text-blue-500 text-6xl">•</span>${txt}</li>`;
+    }).join('');
+    document.getElementById('checklist').innerHTML = listHtml;
+
+    // Timers & Bars
+    const remaining = cur.endSec - currentSecs;
+    const m = Math.floor(remaining/60); const s = Math.floor(remaining%60);
+    document.getElementById('countdown').textContent = `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+
+    const taskPct = Math.max(0, Math.min(100, ((currentSecs - cur.startSec) / (cur.endSec - cur.startSec)) * 100));
+    document.getElementById('task-progress').style.width = `${taskPct}%`;
+
+    const totalPct = Math.max(0, Math.min(100, ((currentSecs - dayStartSec) / (dayEndSec - dayStartSec)) * 100));
+    document.getElementById('morning-progress').style.width = `${totalPct}%`;
+
+    // State Colors
+    const body = document.getElementById('main-body');
+    const cd = document.getElementById('countdown');
+    
+    body.classList.remove('bg-normal','bg-warning','bg-critical');
+    cd.classList.remove('pulse', 'text-warning', 'text-critical');
+
+    if(remaining <= 30) {
+      body.classList.add('bg-critical'); cd.classList.add('pulse', 'text-critical');
+    } else if(remaining <= 120) {
+      body.classList.add('bg-warning'); cd.classList.add('pulse', 'text-warning');
+    } else {
+      body.classList.add('bg-normal');
+    }
+  }
+
+  async function init() {
+    await loadLiveWeather();
+    update();
+    setInterval(update, 1000);
+  }
+  init();
+</script>
+</body>
+</html>
