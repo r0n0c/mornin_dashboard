@@ -3,6 +3,8 @@
 A high-visibility, "lean-back" dashboard designed for a 1080p kitchen TV. The Morning Launchpad guides children through their morning routine using a dynamic countdown, weather-aware clothing advice, and daily activity reminders.  
 Designed specifically for deployment via **Home Assistant** to a **Google Chromecast**.
 
+![Dashboard Running](https://lh3.googleusercontent.com/pw/AP1GczPB0gjaUYgNMlVQuDFIexigvv4azCQTyWh4bf7xvKtKmMy3KR0Se-UPEakP2Nt3SQlXFguOEv5oh_nKU65A8Nlap_n4HG6VCfK8wSjgNAdwvXzmwimQRxqr_FDtp-WiqN1-d8QSdA7GpNFjAaLXc3G2=w1878-h927-s-no)
+
 ## **🚀 Features**
 
 * **Mission Control UI**: Massive high-contrast countdown timer and progress bars designed for legibility from across the room.  
