@@ -90,8 +90,8 @@
     <div class="flex flex-col w-[60vw] relative pl-4 h-full">
       
       <!-- Full Routine List (Takes up main vertical space) -->
-      <div class="flex-1 overflow-hidden flex flex-col justify-center">
-        <ul id="routine-list" class="space-y-3 flex flex-col w-full"></ul>
+      <div id="routine-container" class="flex-1 overflow-y-auto flex flex-col justify-start pb-2 scroll-smooth">
+        <ul id="routine-list" class="space-y-3 flex flex-col w-full pb-4"></ul>
       </div>
 
       <!-- BOTTOM WIDGETS: Gear Advice & Daily Specials -->
@@ -125,7 +125,7 @@
   <!-- SUCCESS OVERLAY (DOORWAY HUB) -->
   <div id="success-overlay" class="fixed inset-0 bg-black flex flex-col items-center justify-center hidden z-50">
     <h1 class="text-[10vh] font-black text-center leading-tight mb-8 text-white drop-shadow-lg">
-      HAVE A GREAT DAY <br> AT SCHOOL! 🚌
+      HAVE A GREAT DAY <br> AT SCHOOL! 🏫
     </h1>
     
     <div class="bg-gray-900 border-4 border-gray-800 rounded-[3rem] p-10 flex flex-col items-center gap-8 shadow-2xl min-w-[70vw]">
@@ -190,7 +190,7 @@
     1: "📚 Henny Library\n⚽ Girls Soccer\n🥋 Anderson Jiu Jitsu", // Monday
     2: "🩰 Girls Ballet\n🥋 Anderson Jiu Jitsu", // Tuesday
     3: "📚 Henny Library", // Wednesday
-    4: "📚 Anderson Library\n Anderson Jiu Jitsu", // Thursday
+    4: "📚 Anderson Library\n🤼 Anderson Jiu Jitsu", // Thursday
     5: "📚 Juni Library\n📚 Anderson Book Club\n📂 Take Home Folders", // Friday
     6: "Saturday Play Day!" // Saturday
   };
@@ -199,7 +199,7 @@
      2️⃣ THE SCHEDULE
      ============================================================== */
   const ROUTINE = [
-    { id: "EXERCISE", start: "06:30", end: "06:45", title: "Morning Exercise", list: ["☀️ Rise and Grind 💪"] },
+    { id: "EXERCISE", start: "06:30", end: "06:45", title: "Morning Exercise", list: ["💪 Rise and Shine!"] },
     { id: "DRESS", start: "06:45", end: "06:50", title: "Get Dressed", list: ["🩲 Underwear & 🧦 Socks", "👕 [BASE]"] },
     { id: "EAT", start: "06:50", end: "07:10", title: "Breakfast", list: ["🍳 Fuel your Body", "🧽 Clean up dishes"] },
     { id: "TEETH", start: "07:10", end: "07:15", title: "Brush Teeth", list: ["⏱️ 2 minutes brushing", "🚰 Rinse sink"] },
@@ -226,15 +226,15 @@
   }
 
   function getWeatherAdvice(tempF, condition) {
-    const isRaining = /rain|drizzle|storm|shower/i.test(condition);
+    const isRaining = /rain|storm|shower/i.test(condition);
     const t = Math.round(tempF);
 
-    let base = t < 32 ? "Long sleeves + Long pants" : (t <= 60 ? "Short sleeves + Long pants" : "Short sleeves + Shorts");
-    if (Math.abs(t-45) <= 2 && !isRaining) base = "Short sleeves + Long pants"; 
+    let base = t < 32 ? "Long sleeves + 👖 Long pants" : (t <= 70 ? "Short sleeves +👖 Long pants" : "Short sleeves + 🩳 Shorts");
+    if (Math.abs(t-45) <= 2 && !isRaining) base = "Short sleeves +👖🩳 Long pants"; 
 
     let gear = "None";
-    if (isRaining) gear = t < 40 ? "Winter clothes + Umbrella" : "Rain coat & boots + Umbrella";
-    else if (t < 32) gear = "Winter coat, Boots, Gloves, Hat";
+    if (isRaining) gear = t < 40 ? "🧥 Winter clothes" : "Rain coat & boots ";
+    else if (t < 32) gear = "🧥 Winter coat, Boots,🧤 Gloves, Hat";
     else if (t <= 60) gear = "Light Jacket";
 
     return { base, gear, fullDay: `${base} + ${gear}` };
@@ -388,6 +388,7 @@
       let icon = "⏳";
       let titleClass = "text-3xl font-bold ";
       let sublistClass = "text-xl mt-1 space-y-1 text-gray-400 font-medium"; 
+      let activeId = "";
 
       if (isCompleted) {
         liClass += "border-transparent opacity-30 bg-transparent";
@@ -395,6 +396,7 @@
         titleClass += "text-gray-500 line-through";
         sublistClass += " line-through";
       } else if (isCurrent) {
+        activeId = 'id="active-routine-item"';
         liClass += "bg-slate-700 border-slate-500 shadow-xl scale-[1.01] transform";
         icon = "<span class='text-green-400 pulse inline-block'>▹</span>";
         titleClass += "text-white text-4xl"; 
@@ -411,7 +413,7 @@
       }).join('');
 
       return `
-        <li class="${liClass}">
+        <li ${activeId} class="${liClass}">
           <div class="flex items-center">
             <div class="w-12 text-center text-3xl">${icon}</div>
             <div class="w-24 text-2xl font-mono text-gray-500 tracking-wider">${r.start}</div>
@@ -427,6 +429,15 @@
     }).join('');
     
     document.getElementById('routine-list').innerHTML = listHtml;
+
+    // 🎯 Auto-scroll to active item
+    const activeItem = document.getElementById('active-routine-item');
+    const currentId = cur ? cur.id : null;
+    if (activeItem && window.lastScrolledItem !== currentId) {
+       // Scroll smoothly to center the active item in the view
+       activeItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+       window.lastScrolledItem = currentId;
+    }
   }
 
   async function init() {
